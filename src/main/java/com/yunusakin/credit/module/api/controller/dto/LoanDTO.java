@@ -17,6 +17,7 @@ public class LoanDTO implements Serializable {
     private Long customerId;
 
     @Positive(message = "Loan amount must be positive")
+    @NotNull
     private BigDecimal loanAmount;
 
     @NotNull(message = "Number of installments is required")

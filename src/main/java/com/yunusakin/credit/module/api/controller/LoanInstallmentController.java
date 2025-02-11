@@ -17,7 +17,7 @@ import javax.validation.Valid;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/v1/installments")
+@RequestMapping("/api/v1/installments")
 @Tag(name = "Installment API", description = "Operations related to loan installments")
 public class LoanInstallmentController {
     private final LoanInstallmentService installmentService;
@@ -46,7 +46,7 @@ public class LoanInstallmentController {
             @ApiResponse(responseCode = "404", description = "Loan not found")
     })
     @PostMapping("/pay")
-    public ResponseEntity<BaseApiResponse<String>> payInstallments(@Valid PayInstallmentDTO payInstallmentDTO) {
+    public ResponseEntity<BaseApiResponse<String>> payInstallments(@Valid @RequestBody PayInstallmentDTO payInstallmentDTO) {
         String result = loanService.payInstallments(payInstallmentDTO.getLoanId(), payInstallmentDTO.getPaymentAmount());
         return ResponseEntity.ok(new BaseApiResponse<>(HttpStatus.OK, result, null));
     }

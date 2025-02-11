@@ -18,7 +18,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/v1/loans")
+@RequestMapping("/api/v1/loans")
 @Tag(name = "Loan API", description = "Operations related to loans")
 public class LoanController {
     private final LoanService loanService;
@@ -32,6 +32,7 @@ public class LoanController {
             @ApiResponse(responseCode = "200", description = "Loan created successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid loan details provided")
     })
+    @PostMapping
     public ResponseEntity<BaseApiResponse<Loan>> createLoan(@Valid @RequestBody LoanDTO loanDTO) {
         return ResponseEntity.ok(new BaseApiResponse<>(HttpStatus.OK, "Loan created successfully", loanService.createLoan(loanDTO)));
     }

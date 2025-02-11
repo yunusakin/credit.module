@@ -1,5 +1,6 @@
 package com.yunusakin.credit.module.api.repository.domain;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.yunusakin.credit.module.common.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -14,6 +15,8 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 public class Loan extends BaseEntity {
+
+    @JsonManagedReference
     @ManyToOne
     @JoinColumn(name = "customer_id")
     private Customer customer;
@@ -22,6 +25,7 @@ public class Loan extends BaseEntity {
     private Integer numberOfInstallments;
     private Boolean isPaid = false;
 
+    @JsonManagedReference
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<LoanInstallment> installments;
 }
