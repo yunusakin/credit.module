@@ -1,6 +1,6 @@
 package com.yunusakin.credit.module.common.exception;
 
-import com.yunusakin.credit.module.common.response.ApiResponse;
+import com.yunusakin.credit.module.common.response.BaseApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -14,22 +14,22 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+    public ResponseEntity<BaseApiResponse<Map<String, String>>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             errors.put(error.getField(), error.getDefaultMessage());
         }
-        return ResponseEntity.badRequest().body(new ApiResponse<>(HttpStatus.BAD_REQUEST, "Validation failed", errors));
+        return ResponseEntity.badRequest().body(new BaseApiResponse<>(HttpStatus.BAD_REQUEST, "Validation failed", errors));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<String>> handleIllegalArgumentException(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(new ApiResponse<>(HttpStatus.BAD_REQUEST, ex.getMessage(), null));
+    public ResponseEntity<BaseApiResponse<String>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(new BaseApiResponse<>(HttpStatus.BAD_REQUEST, ex.getMessage(), null));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<String>> handleGeneralException(Exception ex) {
+    public ResponseEntity<BaseApiResponse<String>> handleGeneralException(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", ex.getMessage()));
+                .body(new BaseApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", ex.getMessage()));
     }
 }

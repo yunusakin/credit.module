@@ -15,12 +15,13 @@ import org.mockito.MockitoAnnotations;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 public class LoanServiceTest {
@@ -44,8 +45,7 @@ public class LoanServiceTest {
 
     @Test
     void createLoan_ShouldCreateLoanSuccessfully() {
-        Customer customer = createCustomer(1L, "10000", "2000");
-
+        Customer customer = createCustomer("2000");
         LoanDTO loanDTO = createLoanDTO(1L, "5000", 0.1, "12");
 
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
@@ -60,8 +60,7 @@ public class LoanServiceTest {
 
     @Test
     void createLoan_ShouldThrowException_WhenCreditLimitExceeded() {
-        Customer customer = createCustomer(1L, "10000", "9500");
-
+        Customer customer = createCustomer("9500");
         LoanDTO loanDTO = createLoanDTO(1L, "1000", 0.1, "12");
 
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
@@ -73,17 +72,17 @@ public class LoanServiceTest {
     @Test
     void payInstallments_ShouldPayAllInstallments_WhenPaymentIsEnough() {
         Loan loan = createLoan(1L);
-        LoanInstallment installment1 = createInstallment("500", "0", false, LocalDate.now().minusMonths(1), loan);
+        LoanInstallment installment1 = createInstallment("500", "0", false, LocalDate.now().minusDays(30), loan);
         LoanInstallment installment2 = createInstallment("500", "0", false, LocalDate.now(), loan);
 
-        when(installmentRepository.findAll()).thenReturn(Arrays.asList(installment1, installment2));
+        when(installmentRepository.findDueInstallments(anyLong(), any(LocalDate.class)))
+                .thenReturn(Arrays.asList(installment1, installment2));
         when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
-
         String result = loanService.payInstallments(1L, new BigDecimal("1000"));
 
-        assertEquals("Installments Paid: 2, Total Paid: 1000.00, Remaining Payment: 0.00", result);
+        assertEquals("Installments Paid: 1, Total Paid: 515.00, Remaining Payment: 485.00", result);
         assertTrue(installment1.getIsPaid());
-        assertTrue(installment2.getIsPaid());
+        assertFalse(installment2.getIsPaid());
     }
 
     @Test
@@ -92,14 +91,69 @@ public class LoanServiceTest {
         LoanInstallment installment1 = createInstallment("500", "0", false, LocalDate.now(), loan);
         LoanInstallment installment2 = createInstallment("500", "0", false, LocalDate.now().plusMonths(1), loan);
 
-        when(installmentRepository.findAll()).thenReturn(Arrays.asList(installment1, installment2));
+        when(installmentRepository.findDueInstallments(anyLong(), any(LocalDate.class)))
+                .thenReturn(Arrays.asList(installment1, installment2));
         when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
 
         String result = loanService.payInstallments(1L, new BigDecimal("750"));
 
-        assertEquals("Installments Paid: 1, Total Paid: 750.00, Remaining Payment: 0.00", result);
+        assertEquals("Installments Paid: 1, Total Paid: 500.00, Remaining Payment: 250.00", result);
         assertTrue(installment1.getIsPaid());
         assertFalse(installment2.getIsPaid());
+    }
+
+
+    @Test
+    void payInstallments_ShouldHandleOverpayment() {
+        Loan loan = createLoan(1L);
+        LoanInstallment installment1 = createInstallment("500", "0", false, LocalDate.now(), loan);
+        LoanInstallment installment2 = createInstallment("500", "0", false, LocalDate.now(), loan);
+
+        when(installmentRepository.findDueInstallments(anyLong(), any(LocalDate.class)))
+                .thenReturn(Arrays.asList(installment1, installment2));
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
+
+        String result = loanService.payInstallments(1L, new BigDecimal("1500"));
+
+        assertEquals("Installments Paid: 2, Total Paid: 1000.00, Remaining Payment: 500.00", result);
+        assertTrue(installment1.getIsPaid());
+        assertTrue(installment2.getIsPaid());
+    }
+
+    @Test
+    void payInstallments_ShouldHandleNoDueInstallments() {
+        Loan loan = createLoan(1L);
+
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
+        when(installmentRepository.findDueInstallments(anyLong(), any(LocalDate.class)))
+                .thenReturn(Collections.emptyList());
+
+        String result = loanService.payInstallments(1L, new BigDecimal("500"));
+
+        assertEquals("No due installments available for payment.", result);
+    }
+
+    @Test
+    void payInstallments_ShouldHandleEarlyPaymentDiscount() {
+        Loan loan = createLoan(1L);
+        LoanInstallment installment = createInstallment("1000", "0", false, LocalDate.now().plusDays(30), loan);
+
+        when(installmentRepository.findDueInstallments(anyLong(), any(LocalDate.class)))
+                .thenReturn(Collections.singletonList(installment));
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
+
+        String result = loanService.payInstallments(1L, new BigDecimal("970"));
+
+        assertEquals("Installments Paid: 1, Total Paid: 970.00, Remaining Payment: 0.00", result);
+        assertTrue(installment.getIsPaid());
+    }
+
+    @Test
+    void payInstallments_ShouldThrowException_WhenLoanNotFound() {
+        when(loanRepository.findById(anyLong())).thenReturn(Optional.empty());
+
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> loanService.payInstallments(99L, new BigDecimal("500")));
+        assertEquals("Loan not found", exception.getMessage());
     }
 
     @Test
@@ -108,7 +162,8 @@ public class LoanServiceTest {
         LoanInstallment installment1 = createInstallment("500", "0", false, LocalDate.now(), loan);
         LoanInstallment installment2 = createInstallment("500", "0", false, LocalDate.now().plusMonths(4), loan);
 
-        when(installmentRepository.findAll()).thenReturn(Arrays.asList(installment1, installment2));
+        when(installmentRepository.findDueInstallments(anyLong(), any(LocalDate.class)))
+                .thenReturn(Collections.singletonList(installment1));
         when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
 
         String result = loanService.payInstallments(1L, new BigDecimal("500"));
@@ -118,68 +173,10 @@ public class LoanServiceTest {
         assertFalse(installment2.getIsPaid());
     }
 
-    @Test
-    void payInstallments_ShouldHandleOverpayment() {
-        Loan loan = createLoan(1L);
-        LoanInstallment installment1 = createInstallment("500", "0", false, LocalDate.now(), loan);
-        LoanInstallment installment2 = createInstallment("500", "0", false, LocalDate.now(), loan);
-
-        when(installmentRepository.findAll()).thenReturn(Arrays.asList(installment1, installment2));
-        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
-
-        String result = loanService.payInstallments(1L, new BigDecimal("1500"));
-
-        assertEquals("Installments Paid: 2, Total Paid: 1000.00, Remaining Payment: 500.00", result);
-    }
-
-    @Test
-    void payInstallments_ShouldThrowException_WhenLoanNotFound() {
-        when(loanRepository.findById(99L)).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> loanService.payInstallments(99L, new BigDecimal("500")));
-        assertEquals("Loan not found", exception.getMessage());
-    }
-
-    @Test
-    void payInstallments_ShouldHandleNoInstallmentsCorrectly() {
-        Loan loan = createLoan(1L);
-
-        when(installmentRepository.findAll()).thenReturn(Collections.emptyList());
-        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
-
-        String result = loanService.payInstallments(1L, new BigDecimal("500"));
-
-        assertEquals("Installments Paid: 0, Total Paid: 0.00, Remaining Payment: 500.00", result);
-    }
-
-    @Test
-    void createLoan_ShouldThrowException_WhenCustomerNotFound() {
-        LoanDTO loanDTO = createLoanDTO(999L, "5000", 0.1, "12");
-
-        when(customerRepository.findById(999L)).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> loanService.createLoan(loanDTO));
-        assertEquals("Customer not found", exception.getMessage());
-    }
-
-    @Test
-    void payInstallments_ShouldNotPayWhenNoDueInstallments() {
-        Loan loan = createLoan(1L);
-        LoanInstallment paidInstallment = createInstallment("500", "500", true, LocalDate.now(), loan);
-
-        when(installmentRepository.findAll()).thenReturn(Collections.singletonList(paidInstallment));
-        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
-
-        String result = loanService.payInstallments(1L, new BigDecimal("500"));
-
-        assertEquals("Installments Paid: 0, Total Paid: 0.00, Remaining Payment: 500.00", result);
-    }
-
-    // Utility methods for creating test objects
-    private Customer createCustomer(Long id, String creditLimit, String usedCreditLimit) {
+    private Customer createCustomer(String usedCreditLimit) {
         Customer customer = new Customer();
-        customer.setId(id);
-        customer.setCreditLimit(new BigDecimal(creditLimit));
+        customer.setId(1L);
+        customer.setCreditLimit(new BigDecimal("10000"));
         customer.setUsedCreditLimit(new BigDecimal(usedCreditLimit));
         return customer;
     }

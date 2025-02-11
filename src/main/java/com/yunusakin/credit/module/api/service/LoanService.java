@@ -99,38 +99,38 @@ public class LoanService {
 
     @Transactional
     public String payInstallments(Long loanId, BigDecimal paymentAmount) {
-        List<LoanInstallment> installments = installmentRepository.findAll().stream()
-                .filter(inst -> inst.getLoan().getId().equals(loanId)
-                        && !inst.getIsPaid()
-                        && inst.getDueDate().isBefore(LocalDate.now().plusMonths(3)))
-                .sorted((a, b) -> a.getDueDate().compareTo(b.getDueDate()))
-                .collect(Collectors.toList());
+        Loan loan = loanRepository.findById(loanId).orElseThrow(() -> new IllegalArgumentException("Loan not found"));
+        List<LoanInstallment> installments = installmentRepository.findDueInstallments(loanId, LocalDate.now().plusMonths(3));
+        if (installments.isEmpty()) {
+            return "No due installments available for payment.";
+        }
 
         BigDecimal remainingPayment = paymentAmount;
         int installmentsPaid = 0;
         BigDecimal totalPaid = BigDecimal.ZERO;
+        LocalDate paymentDate = LocalDate.now();
 
         for (LoanInstallment installment : installments) {
-            BigDecimal remainingInstallmentAmount = installment.getAmount().subtract(installment.getPaidAmount());
+            BigDecimal adjustedInstallmentAmount = applyRewardOrPenalty(installment, paymentDate);
+            BigDecimal remainingInstallmentAmount = adjustedInstallmentAmount.subtract(installment.getPaidAmount());
+
             if (remainingPayment.compareTo(remainingInstallmentAmount) >= 0) {
                 remainingPayment = remainingPayment.subtract(remainingInstallmentAmount);
                 totalPaid = totalPaid.add(remainingInstallmentAmount);
-                installment.setPaidAmount(installment.getAmount());
+                installment.setPaidAmount(adjustedInstallmentAmount);
                 installment.setIsPaid(true);
                 installmentsPaid++;
             } else {
-                installment.setPaidAmount(installment.getPaidAmount().add(remainingPayment));
-                totalPaid = totalPaid.add(remainingPayment);
-                remainingPayment = BigDecimal.ZERO;
                 break;
             }
         }
-        installmentRepository.saveAll(installments);
 
+        installmentRepository.saveAll(installments);
         updateLoanStatus(loanId, installments);
 
         return String.format("Installments Paid: %d, Total Paid: %.2f, Remaining Payment: %.2f", installmentsPaid, totalPaid, remainingPayment);
     }
+
 
     private void updateLoanStatus(Long loanId, List<LoanInstallment> installments) {
         boolean allPaid = installments.stream().allMatch(LoanInstallment::getIsPaid);
@@ -141,11 +141,21 @@ public class LoanService {
         }
     }
 
-    private BigDecimal applyRewardOrPenalty(LoanInstallment installment) {
-        long daysDifference = ChronoUnit.DAYS.between(LocalDate.now(), installment.getDueDate());
-        BigDecimal adjustmentFactor = installment.getAmount().multiply(BigDecimal.valueOf(0.001 * Math.abs(daysDifference)));
+    private BigDecimal applyRewardOrPenalty(LoanInstallment installment, LocalDate paymentDate) {
+        long daysDifference = ChronoUnit.DAYS.between(paymentDate, installment.getDueDate());
+        BigDecimal dailyAdjustmentRate = installment.getAmount()
+                .multiply(BigDecimal.valueOf(0.001))
+                .setScale(2, RoundingMode.HALF_EVEN);
 
-        return installment.getAmount().add(adjustmentFactor.multiply(BigDecimal.valueOf(-Math.signum(daysDifference))));
+        BigDecimal adjustment = dailyAdjustmentRate
+                .multiply(BigDecimal.valueOf(Math.abs(daysDifference)))
+                .setScale(2, RoundingMode.HALF_EVEN);
+
+        if (daysDifference > 0) {
+            return installment.getAmount().subtract(adjustment).setScale(2, RoundingMode.HALF_EVEN);
+        } else if (daysDifference < 0) {
+            return installment.getAmount().add(adjustment).setScale(2, RoundingMode.HALF_EVEN);
+        }
+        return installment.getAmount();
     }
-
 }
