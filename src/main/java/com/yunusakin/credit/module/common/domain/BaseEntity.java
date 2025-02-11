@@ -19,14 +19,14 @@ public abstract class BaseEntity implements Serializable {
 
     @CreatedDate
     @Column(name = "created_date", nullable = false, updatable = false)
-    private LocalDateTime createdDate;
+    private LocalDateTime createdDateTime;
 
     @LastModifiedDate
     @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
+    private LocalDateTime updatedDateTime;
 
     @Column(name = "deleted_date")
-    private LocalDateTime deletedDate;
+    private LocalDateTime deletedDateTime;
 
     @Column(name = "deletable")
     private boolean deletable = true;
