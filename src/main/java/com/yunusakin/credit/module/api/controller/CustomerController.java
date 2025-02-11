@@ -1,7 +1,7 @@
 package com.yunusakin.credit.module.api.controller;
 
 import com.yunusakin.credit.module.api.controller.dto.CustomerDTO;
-import com.yunusakin.credit.module.api.mapper.EntityMapper;
+import com.yunusakin.credit.module.api.repository.domain.Customer;
 import com.yunusakin.credit.module.api.service.CustomerService;
 import com.yunusakin.credit.module.common.response.BaseApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,18 +14,15 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/customers")
 @Tag(name = "Customer API", description = "Operations related to customers")
 public class CustomerController {
     private final CustomerService customerService;
-    private final EntityMapper entityMapper;
 
-    public CustomerController(CustomerService customerService, EntityMapper entityMapper) {
+    public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
-        this.entityMapper = entityMapper;
     }
 
     @Operation(summary = "Create a new customer", description = "Add a new customer to the system")
@@ -34,11 +31,8 @@ public class CustomerController {
             @ApiResponse(responseCode = "400", description = "Invalid input provided")
     })
     @PostMapping
-    public ResponseEntity<BaseApiResponse<CustomerDTO>> createCustomer(@Valid @RequestBody CustomerDTO customerDTO) {
-        var customer = entityMapper.toCustomerEntity(customerDTO);
-        var createdCustomer = customerService.createCustomer(customer);
-        var responseDTO = entityMapper.toCustomerDTO(createdCustomer);
-        return ResponseEntity.ok(new BaseApiResponse<>(HttpStatus.OK, "Customer created successfully", responseDTO));
+    public ResponseEntity<BaseApiResponse<Customer>> createCustomer(@Valid @RequestBody CustomerDTO customerDTO) {
+        return ResponseEntity.ok(new BaseApiResponse<>(HttpStatus.OK, "Customer created successfully", customerService.createCustomer(customerDTO)));
     }
 
     @Operation(summary = "Retrieve a customer by ID", description = "Fetch details of a specific customer by their ID")
@@ -47,11 +41,10 @@ public class CustomerController {
             @ApiResponse(responseCode = "404", description = "Customer not found")
     })
     @GetMapping("/{customerId}")
-    public ResponseEntity<BaseApiResponse<CustomerDTO>> getCustomerById(@PathVariable Long customerId) {
+    public ResponseEntity<BaseApiResponse<Customer>> getCustomerById(@PathVariable Long customerId) {
         var customer = customerService.findCustomerById(customerId).orElseThrow(() ->
                 new IllegalArgumentException("Customer not found"));
-        var responseDTO = entityMapper.toCustomerDTO(customer);
-        return ResponseEntity.ok(new BaseApiResponse<>(HttpStatus.OK, "Customer retrieved successfully", responseDTO));
+        return ResponseEntity.ok(new BaseApiResponse<>(HttpStatus.OK, "Customer retrieved successfully", customer));
     }
 
     @Operation(summary = "List all customers", description = "Retrieve a list of all customers")
@@ -59,10 +52,8 @@ public class CustomerController {
             @ApiResponse(responseCode = "200", description = "Customers retrieved successfully")
     })
     @GetMapping
-    public ResponseEntity<BaseApiResponse<List<CustomerDTO>>> getAllCustomers() {
-        List<CustomerDTO> customers = customerService.findAllCustomers().stream()
-                .map(entityMapper::toCustomerDTO)
-                .collect(Collectors.toList());
+    public ResponseEntity<BaseApiResponse<List<Customer>>> getAllCustomers() {
+        List<Customer> customers = customerService.findAllCustomers();
         return ResponseEntity.ok(new BaseApiResponse<>(HttpStatus.OK, "Customers retrieved successfully", customers));
     }
 }

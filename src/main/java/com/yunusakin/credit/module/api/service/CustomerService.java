@@ -1,5 +1,6 @@
 package com.yunusakin.credit.module.api.service;
 
+import com.yunusakin.credit.module.api.controller.dto.CustomerDTO;
 import com.yunusakin.credit.module.api.repository.CustomerRepository;
 import com.yunusakin.credit.module.api.repository.domain.Customer;
 import org.springframework.stereotype.Service;
@@ -18,7 +19,11 @@ public class CustomerService {
         return customerRepository.findById(customerId);
     }
 
-    public Customer createCustomer(Customer customer) {
+    public Customer createCustomer(CustomerDTO customerDTO) {
+        Customer customer = new Customer();
+        customer.setName(customerDTO.getName());
+        customer.setSurname(customerDTO.getSurname());
+        customer.setCreditLimit(customerDTO.getCreditLimit());
         return customerRepository.save(customer);
     }
 
